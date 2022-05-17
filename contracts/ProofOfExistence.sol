@@ -8,6 +8,9 @@ contract ProofOfExistence {
     mapping(bytes32 => address) private documentToOwner;
     mapping(bytes32 => DocumentDetails) private hashToDetails;
 
+    event DocumentNotarized(address from, string document, bytes32 hash );
+    event NotarizationError(address from, string document, string reason );
+
     struct DocumentDetails {
         string organisation;
         string yearIssued;
@@ -22,11 +25,31 @@ contract ProofOfExistence {
     }
 
     // calculate and store the proof for a document
-    function notarize(string memory _document, string memory _organisation, string memory _yearIssued, string memory _expiryDate, uint64 _ownershipStake) public payable{
-        require(msg.value == 0.5 ether, "0.5 ether is required for this service");
+    function notarize(string memory _document, string memory _organisation, string memory _yearIssued, string memory _expiryDate, uint64 _ownershipStake) public payable {
+        
+        //---check if string was previously stored---
+        if (isNotarized[hashProof(_document)]) {
+            //---fire the event---
+            emit NotarizationError(msg.sender, _document, "hash was stored previously");
+            //---refund back to the sender---
+            payable(msg.sender).transfer(msg.value);
+            //---exit the function---
+            return;
+        }
+
+        if (msg.value < 0.5 ether) {
+            //---fire the event---
+            emit NotarizationError(msg.sender, _document, "Incorrect amount of Ether paid");
+            //---refund back to the sender---
+            payable(msg.sender).transfer(msg.value);
+            //---exit the function---
+            return;
+        }
+
         bytes32 docHash = hashProof(_document);
         storeDocument( docHash, msg.sender);
         hashToDetails[docHash] = DocumentDetails(_organisation, _yearIssued, _expiryDate, _ownershipStake);
+        emit DocumentNotarized(msg.sender, _document, docHash);
     }
 
     // helper function to get a document's sha256
